@@ -25,6 +25,3 @@ FILE_PATHS |>
     write_parquet(df, glue::glue('data/parq/{output_file}.parquet'))
   })
 
-
-df <- open_dataset("data/parq/") |>
-  collect()
