@@ -10,7 +10,7 @@ library(arrow)
 # Create the 'parq' directory if it doesn't exist
 dir.create("data/parq", showWarnings = FALSE, recursive = TRUE)
 
-FILE_PATHS <- glue::glue('data/endsong_{0:2}.json')
+FILE_PATHS <- list.files('data/extended', full.names = TRUE)
 
 FILE_PATHS |>
   walk(~{
@@ -22,6 +22,6 @@ FILE_PATHS |>
     output_file <- gsub("\\.json$", "", basename(.x))
     
     # Write the Parquet file to the 'data/parq' directory
-    write_parquet(df, glue::glue('data/parq/{output_file}.parquet'))
+    arrow::write_parquet(df, glue::glue('data/parq/{output_file}.parquet'))
   })
 
