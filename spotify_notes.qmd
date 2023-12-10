@@ -1,0 +1,160 @@
+---
+title: "spotify_notes"
+format: html
+editor: visual
+---
+
+## Quarto
+
+```{r warning=FALSE, message=FALSE}
+library(arrow, warn.conflicts = FALSE)
+library(dplyr)
+library(ggplot2)
+library(stringr)
+library(lubridate)
+```
+
+You can add options to executable code like this
+
+```{r}
+df <- open_dataset("data/parq/") |>
+  select(-c(skipped, offline_timestamp)) |>
+  filter(!is.na(album_artist_name)) |>
+  collect() |>
+  # have to do this after you load it since lubridate doesn't work with arrow
+  mutate(
+    # changes the timestamp to a datetime object
+    # time is in UTC, keeping this to reference later on
+    ts = ymd_hms(ts),
+    year = lubridate::year(ts),
+    date = lubridate::date(ts),
+    time = as_datetime(ts, tz = "Australia/Sydney")
+    #time = as_datetime(ts, tz = "UTC")
+  )
+
+# 2023-11-03 01:30:23
+```
+
+Since this dataset is already clean, we do not have to worry about that, however, there are still steps we can take to get a general understanding before we do anything. For instance, looking at the number of unique artist that I listen to be year:
+
+```{r}
+df |> 
+  group_by(year) |>
+  summarise(across(album_artist_name, ~n_distinct(.)))
+```
+
+Next, let's look at the proportion of unique songs that I listen to by year. For something like this, simply displaying the values as a table is more effective. While plots are useful for displaying features of the data, understanding when to use a table over a plot is quite important. For more, check out this paper by Jonathan Schwabish [^1].
+
+```{r}
+df |>
+  group_by(year) |>
+  summarise(
+    n = n(),
+    n_distinct = n_distinct(spotify_track_uri) / n
+    )
+```
+
+While the proportion of unique songs is obviously decreasing, the first two years has a much smaller sample, which probably explains why the proportion is much higher than the later years as the sample size increases. 
+
+Instead of looking this on a song level, let's look at it on an artist level. 
+
+```{r}
+# what proportion of plays are unique artists?
+
+df |>
+  mutate(year = lubridate::year(date)) |>
+  group_by(album_artist_name, year)|>
+  summarise(n = n()) |>
+  group_by(year) |>
+  mutate(total = sum(n)) |>
+  ungroup() |>
+  mutate(ratio = n / total) |>
+  arrange(-ratio)
+
+```
+
+```{r}
+df1 <- df |>
+  mutate(year = lubridate::year(date)) |>
+  group_by(album_artist_name, year) |>
+  summarise(
+    n = n(),
+    minutes_played = sum(ms_played) / 1000 / 60,
+  ) |>
+  ungroup() |>
+  filter(n > 3)
+
+df1 %>%
+  group_by(year) %>%
+  slice_max(minutes_played, n = 10) %>%
+  ungroup() %>%
+  mutate(artist_year = paste(album_artist_name, year, sep = "_")) %>%
+  ggplot(aes(x = reorder(artist_year, minutes_played), y = minutes_played)) +
+  geom_col() +
+  facet_wrap(~year, scales = "free", strip.position = "bottom", labeller = label_parsed) +
+  coord_flip() +
+  theme_minimal() +
+  theme(strip.text = element_text(size = 8)) +
+  scale_x_discrete(labels = function(x) str_replace(x, "_[0-9]+$", ""))
+```
+
+```{r}
+# hours listened to by day of the week and time of day
+df |>
+  filter(year == 2023) |>
+  mutate(
+    day = lubridate::wday(date, label = TRUE),
+    hour = lubridate::hour(time)
+  ) |>
+  group_by(day, hour) |>
+  summarise(minutes_played = sum(ms_played) / 1000 / 60) |>
+  ungroup() |>
+  ggplot(aes(x = day, y = hour, fill = minutes_played)) +
+  geom_tile() +
+  scale_fill_viridis_c() +
+  scale_y_continuous(breaks = seq(0, 23, 1), labels = function(x) ifelse(x <= 12, paste0(x, " AM"), paste0(x - 12, " PM"))) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 90, hjust = 1),
+    legend.position = "bottom"
+  ) +
+  guides(fill = guide_colorbar(barwidth = 10, barheight = 1, title.position = "top", title.hjust = 0.5)) +
+  labs(
+    x = NULL,
+    y = NULL,
+    title = "Hours listened to by day of the week and time of day",
+    fill = "Hours"
+  )
+
+ggsave("images/spotify_hours.png", width = 10, height = 6, units = "in")
+ggsave("images/spotify_hours.jpeg", width = 10, height = 6, units = "in", device = 'jpeg')
+```
+
+```{r}
+```
+
+```{r}
+```
+
+```{r}
+```
+
+```{r}
+```
+
+```{r}
+```
+
+```{r}
+```
+
+```{r}
+```
+
+```{r}
+```
+
+```{r}
+
+
+[^1]: https://www.cambridge.org/core/journals/journal-of-benefit-cost-analysis/article/abs/ten-guidelines-for-better-tables/74C6FD9FEB12038A52A95B9FBCA05A12

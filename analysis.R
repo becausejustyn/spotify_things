@@ -4,20 +4,30 @@ library(dplyr)
 library(purrr)
 library(tidyr)
 library(stringr)
+library(ggplot2)
 
 df <- open_dataset("data/parq/") |>
   select(-c(skipped, offline_timestamp)) |>
   filter(!is.na(album_artist_name)) |>
-  collect()
-
-# have to do this after you load it since lubridate doesn't work with arrow
-
-df <- df |>
+  collect() |>
+  # have to do this after you load it since lubridate doesn't work with arrow
   mutate(
     date = lubridate::as_date(ts),
     time = format(lubridate::as_datetime(ts), "%H:%M:%S"),
   ) |>
   select(-ts)
+
+# what proportion of the songs are unique?
+df |> 
+  summarise(n_distinct = n_distinct(spotify_track_uri) / n())
+
+df |>
+  mutate(year = lubridate::year(date)) |>
+  group_by(year) |>
+  summarise(
+    n = n(),
+    n_distinct = n_distinct(spotify_track_uri) / n)
+
 
 
 
@@ -85,14 +95,23 @@ track_df <- df |>
   rename_with(~stringr::str_replace(., 'album_', ''), starts_with('album_'))
 
 
-
-
 library(spotifyr)
 
 access_token <- get_spotify_access_token()
 
 
-
+ggplot(data = top_4, aes(x = valence, y = energy, color = artist_name)) +
+  geom_point(position = "jitter") +
+  geom_vline(xintercept = 0.5) +
+  geom_hline(yintercept = 0.5) +
+  scale_x_continuous(expand = c(0, 0), limits = c(0, 1)) +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, 1)) +
+  geom_label(x = 0.25/2, y = 0.95, label = "Angry / Turbulent", color = "black", fill = "aliceblue") +
+  geom_label(x = 1.75/2, y = 0.95, label = "Joyful / Happy", color = "black", fill = "aliceblue") +
+  geom_label(x = 1.75/2, y = 0.05, label = "Peace / Chill", color = "black", fill = "aliceblue") +
+  geom_label(x = 0.25/2, y = 0.05, label = "Depressing / Sad", color = "black", fill = "aliceblue") +
+  labs(x= "Valence", y= "Energy") +
+  ggtitle("Emotional Quadrant - Top Four Artists", "Energy vs Valence")  
 
 # Function to get track audio features for a batch
 get_batch_audio_features <- function(batch_df, access_token) {
